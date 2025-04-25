@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>All Confessions</title>
+  </head>
+  <body>
+    <h2>All Confessions</h2>
+    {% if confessions %}
+    <ul>
+      {% for confession in confessions %}
+      <li>{{ confession.text }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No confessions submitted yet.</p>
+    {% endif %}
+    <a href="{{ url_for('profile') }}">Back to Profile</a>
+  </body>
+</html>
