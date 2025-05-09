@@ -13,7 +13,7 @@ export const AuthProvider = ({ children }) => {
 
   // Axios instance for API calls
   const axiosInstance = axios.create({
-    baseURL: "http://localhost:5000/api", // Change this to your Flask backend URL
+    baseURL: "http://localhost:5000/api", // Adjust to your Flask backend URL
     headers: {
       "Content-Type": "application/json",
     },
@@ -22,7 +22,6 @@ export const AuthProvider = ({ children }) => {
   // Check if user is authenticated and if they're an admin
   const checkAuthState = useCallback(() => {
     setLoading(true);
-    // Fetch user authentication state from Flask API
     axiosInstance
       .get("/check_auth")
       .then((response) => {
@@ -45,16 +44,16 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // Register a new user
-  const register = async (email, password, displayName) => {
+  const register = async (username, email, password) => {
     try {
       setLoading(true);
       const response = await axiosInstance.post("/register", {
+        username,
         email,
         password,
-        displayName,
       });
       setCurrentUser(response.data.user);
-      toast.success("Account created successfully!");
+      toast.success("Registration successful!");
       return response.data.user;
     } catch (error) {
       console.error("Error during registration:", error);

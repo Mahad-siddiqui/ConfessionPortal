@@ -1,9 +1,9 @@
-from flask import Flask, render_template, redirect, url_for, request, flash
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_cors import CORS
 
-# Initialize the Flask application and set up database and login manager
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///confessions.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -12,8 +12,6 @@ app.secret_key = 'your_secret_key'
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
-
-# User model
 
 
 class User(UserMixin, db.Model):
@@ -24,8 +22,6 @@ class User(UserMixin, db.Model):
 
     def __repr__(self):
         return f'<User {self.username}>'
-
-# Confession model
 
 
 class Confession(db.Model):
@@ -38,146 +34,130 @@ class Confession(db.Model):
     def __repr__(self):
         return f'<Confession {self.id}>'
 
-# User loader for Flask-Login
-
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Registration route
+# Register route (API version)
 
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/api/register', methods=['POST'])
 def register():
-    if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = generate_password_hash(
-            request.form['password'], method='pbkdf2:sha256')
+    data = request.get_json()
+    username = data['username']
+    email = data['email']
+    password = generate_password_hash(data['password'], method='pbkdf2:sha256')
 
-        new_user = User(username=username, email=email, password=password)
+    new_user = User(username=username, email=email, password=password)
 
-        try:
-            db.session.add(new_user)
-            db.session.commit()
-            flash('Registration successful! Please log in.', 'success')
-            return redirect(url_for('login'))
-        except:
-            flash('Error! User already exists.', 'danger')
-            return redirect(url_for('register'))
+    try:
+        db.session.add(new_user)
+        db.session.commit()
+        return jsonify({'message': 'Registration successful!', 'user': {'username': new_user.username, 'email': new_user.email}}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
-    return render_template('register.html')
-
-# Login route
+# Login route (API version)
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
-    if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
+    data = request.get_json()
+    email = data['email']
+    password = data['password']
 
-        user = User.query.filter_by(email=email).first()
+    user = User.query.filter_by(email=email).first()
+    if user and check_password_hash(user.password, password):
+        login_user(user)
+        return jsonify({'message': 'Login successful', 'user': {'username': user.username, 'email': user.email}}), 200
+    return jsonify({'error': 'Invalid credentials'}), 400
 
-        if user and check_password_hash(user.password, password):
-            login_user(user)
-            return redirect(url_for('profile'))
-        else:
-            flash('Login Unsuccessful. Please check email and password.', 'danger')
-
-    return render_template('login.html')
-
-# Profile route (Logged in user view)
+# Logout route (API version)
 
 
-@app.route('/profile')
-@login_required
-def profile():
-    user_confessions = Confession.query.filter_by(
-        user_id=current_user.id).all()
-    return render_template('profile.html', confessions=user_confessions)
-
-# Logout route
-
-
-@app.route('/logout')
+@app.route('/api/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('login'))
+    return jsonify({'message': 'Logged out successfully'}), 200
+
+# Check auth status (API version)
 
 
-@app.route('/create_confession', methods=['GET', 'POST'])
+@app.route('/api/check_auth', methods=['GET'])
+def check_auth():
+    if current_user.is_authenticated:
+        return jsonify({'user': {'username': current_user.username, 'email': current_user.email}}), 200
+    return jsonify({'user': None}), 200
+
+# Create confession (API version)
+
+
+@app.route('/api/create_confession', methods=['POST'])
 @login_required
 def create_confession():
-    if request.method == 'POST':
-        confession_text = request.form['confession']
+    data = request.get_json()
+    confession_text = data['confession']
 
-        # Create a new Confession object and store it in the database
-        new_confession = Confession(
-            user_id=current_user.id, text=confession_text)
+    new_confession = Confession(user_id=current_user.id, text=confession_text)
 
-        try:
-            db.session.add(new_confession)
-            db.session.commit()
-            flash('Your confession has been submitted!', 'success')
-            return redirect(url_for('profile'))
-        except:
-            flash('Error submitting your confession. Try again.', 'danger')
-            return redirect(url_for('create_confession'))
+    try:
+        db.session.add(new_confession)
+        db.session.commit()
+        return jsonify({'message': 'Confession submitted successfully!', 'confession': {'id': new_confession.id, 'text': new_confession.text}}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
-    return render_template('create_confession.html')
+# Get all confessions (API version)
 
 
-@app.route('/all_confessions', methods=['GET'])
+@app.route('/api/all_confessions', methods=['GET'])
 def all_confessions():
-    # Retrieve all confessions from the database
     confessions = Confession.query.all()
-    return render_template('all_confessions.html', confessions=confessions)
+    return jsonify([{'id': confession.id, 'text': confession.text} for confession in confessions]), 200
+
+# Edit confession (API version)
 
 
-@app.route('/edit_confession/<int:confession_id>', methods=['GET', 'POST'])
+@app.route('/api/edit_confession/<int:confession_id>', methods=['PUT'])
 @login_required
 def edit_confession(confession_id):
     confession = Confession.query.get_or_404(confession_id)
 
-    # Check if the logged-in user is the owner of the confession
     if confession.user_id != current_user.id:
-        flash('You are not authorized to edit this confession.', 'danger')
-        return redirect(url_for('profile'))
+        return jsonify({'error': 'You are not authorized to edit this confession'}), 403
 
-    if request.method == 'POST':
-        confession.text = request.form['confession']
-        try:
-            db.session.commit()
-            flash('Confession updated successfully!', 'success')
-            return redirect(url_for('profile'))
-        except:
-            flash('Error updating your confession. Try again.', 'danger')
-            return redirect(url_for('edit_confession', confession_id=confession.id))
+    data = request.get_json()
+    confession.text = data['confession']
 
-    return render_template('edit_confession.html', confession=confession)
+    try:
+        db.session.commit()
+        return jsonify({'message': 'Confession updated successfully!', 'confession': {'id': confession.id, 'text': confession.text}}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+# Delete confession (API version)
 
 
-@app.route('/delete_confession/<int:confession_id>', methods=['GET', 'POST'])
+@app.route('/api/delete_confession/<int:confession_id>', methods=['DELETE'])
 @login_required
 def delete_confession(confession_id):
     confession = Confession.query.get_or_404(confession_id)
 
-    # Check if the logged-in user is the owner of the confession
     if confession.user_id != current_user.id:
-        flash('You are not authorized to delete this confession.', 'danger')
-        return redirect(url_for('profile'))
+        return jsonify({'error': 'You are not authorized to delete this confession'}), 403
 
     try:
         db.session.delete(confession)
         db.session.commit()
-        flash('Confession deleted successfully!', 'success')
-    except:
-        flash('Error deleting your confession. Try again.', 'danger')
+        return jsonify({'message': 'Confession deleted successfully!'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
-    return redirect(url_for('profile'))
+
+# Allow all domains for testing purposes
+CORS(app)
 
 
 if __name__ == '__main__':

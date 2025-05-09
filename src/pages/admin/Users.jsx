@@ -1,104 +1,88 @@
-import { useState, useEffect } from 'react'
-import { 
-  collection, 
-  getDocs, 
-  updateDoc, 
-  doc, 
-  deleteDoc 
-} from 'firebase/firestore'
-import { db } from '../../firebase/config'
-import { 
-  FiSearch, 
-  FiUserX, 
-  FiUserCheck, 
-  FiTrash2, 
+import { useState, useEffect } from "react";
+import axios from "axios";
+import {
+  FiSearch,
+  FiUserX,
+  FiUserCheck,
+  FiTrash2,
   FiShield,
-  FiUser
-} from 'react-icons/fi'
-import toast from 'react-hot-toast'
+  FiUser,
+} from "react-icons/fi";
+import toast from "react-hot-toast";
 
 const AdminUsers = () => {
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        setLoading(true)
-        const usersSnapshot = await getDocs(collection(db, 'users'))
-        const usersList = []
-        
-        usersSnapshot.forEach(doc => {
-          usersList.push({
-            id: doc.id,
-            ...doc.data()
-          })
-        })
-        
-        setUsers(usersList)
+        setLoading(true);
+        const response = await axios.get("http://localhost:5000/api/users"); // Adjust to your Flask API endpoint
+        setUsers(response.data.users);
       } catch (error) {
-        console.error('Error fetching users:', error)
-        toast.error('Failed to load users')
+        console.error("Error fetching users:", error);
+        toast.error("Failed to load users");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchUsers()
-  }, [])
+    fetchUsers();
+  }, []);
 
   const handleRoleChange = async (userId, newRole) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { role: newRole })
-      
-      // Update local state
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
+      await axios.put(`http://localhost:5000/api/users/${userId}/role`, {
+        role: newRole,
+      }); // API call to update user role
+      setUsers((prevUsers) =>
+        prevUsers.map((user) =>
           user.id === userId ? { ...user, role: newRole } : user
         )
-      )
-      
-      toast.success(`User role updated to ${newRole}`)
+      );
+      toast.success(`User role updated to ${newRole}`);
     } catch (error) {
-      console.error('Error updating user role:', error)
-      toast.error('Failed to update user role')
+      console.error("Error updating user role:", error);
+      toast.error("Failed to update user role");
     }
-  }
+  };
 
   const handleDeleteUser = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this user? This action cannot be undone."
+      )
+    ) {
       try {
-        await deleteDoc(doc(db, 'users', userId))
-        
-        // Update local state
-        setUsers(prevUsers => prevUsers.filter(user => user.id !== userId))
-        
-        toast.success('User deleted successfully')
+        await axios.delete(`http://localhost:5000/api/users/${userId}`); // API call to delete user
+        setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userId));
+        toast.success("User deleted successfully");
       } catch (error) {
-        console.error('Error deleting user:', error)
-        toast.error('Failed to delete user')
+        console.error("Error deleting user:", error);
+        toast.error("Failed to delete user");
       }
     }
-  }
+  };
 
   // Filter users based on search term
-  const filteredUsers = users.filter(user => {
-    if (searchTerm === '') return true
-    
-    const searchLower = searchTerm.toLowerCase()
+  const filteredUsers = users.filter((user) => {
+    if (searchTerm === "") return true;
+    const searchLower = searchTerm.toLowerCase();
     return (
-      (user.displayName && user.displayName.toLowerCase().includes(searchLower)) ||
+      (user.displayName &&
+        user.displayName.toLowerCase().includes(searchLower)) ||
       (user.email && user.email.toLowerCase().includes(searchLower))
-    )
-  })
+    );
+  });
 
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
         Manage Users
       </h1>
-      
+
       <div className="mb-6 flex justify-end">
         <div className="relative max-w-xs">
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
@@ -113,7 +97,7 @@ const AdminUsers = () => {
           />
         </div>
       </div>
-      
+
       {loading ? (
         <div className="my-12 flex justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-300 border-t-primary-600"></div>
@@ -132,32 +116,37 @@ const AdminUsers = () => {
             </thead>
             <tbody className="divide-y divide-neutral-200 dark:divide-neutral-700">
               {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700">
+                <tr
+                  key={user.id}
+                  className="hover:bg-neutral-50 dark:hover:bg-neutral-700"
+                >
                   <td className="px-6 py-4 font-medium text-neutral-900 dark:text-neutral-100">
-                    {user.displayName || 'N/A'}
+                    {user.displayName || "N/A"}
                   </td>
                   <td className="px-6 py-4 text-neutral-700 dark:text-neutral-300">
                     {user.email}
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-                      user.role === 'admin' 
-                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' 
-                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                    }`}>
-                      {user.role || 'student'}
+                    <span
+                      className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                        user.role === "admin"
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300"
+                          : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                      }`}
+                    >
+                      {user.role || "student"}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-neutral-500 dark:text-neutral-400">
-                    {user.createdAt 
-                      ? new Date(user.createdAt).toLocaleDateString() 
-                      : 'N/A'}
+                    {user.createdAt
+                      ? new Date(user.createdAt).toLocaleDateString()
+                      : "N/A"}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {user.role !== 'admin' ? (
+                      {user.role !== "admin" ? (
                         <button
-                          onClick={() => handleRoleChange(user.id, 'admin')}
+                          onClick={() => handleRoleChange(user.id, "admin")}
                           className="rounded-full p-1.5 text-neutral-600 hover:bg-purple-100 hover:text-purple-600 dark:text-neutral-400 dark:hover:bg-purple-900/30 dark:hover:text-purple-400"
                           title="Make Admin"
                         >
@@ -165,14 +154,13 @@ const AdminUsers = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleRoleChange(user.id, 'student')}
+                          onClick={() => handleRoleChange(user.id, "student")}
                           className="rounded-full p-1.5 text-neutral-600 hover:bg-blue-100 hover:text-blue-600 dark:text-neutral-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                           title="Make Student"
                         >
                           <FiUser size={16} />
                         </button>
                       )}
-                      
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         className="rounded-full p-1.5 text-neutral-600 hover:bg-red-100 hover:text-red-600 dark:text-neutral-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
@@ -195,7 +183,7 @@ const AdminUsers = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default AdminUsers
+export default AdminUsers;
